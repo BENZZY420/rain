@@ -1,12 +1,10 @@
+-- Main rainbow code, ready for loadstring
 local function RainbowGuns()
     local player = game.Players.LocalPlayer
     local gunsFolder = workspace:FindFirstChild("GUNS")
     if not gunsFolder then
         warn("GUNS folder not found in workspace!")
-        return {
-            Enable = function() end,
-            Disable = function() end
-        }
+        return
     end
 
     local validGunNames = {}
@@ -15,42 +13,18 @@ local function RainbowGuns()
     end
 
     local activeRainbowThreads = {}
-    local originalProperties = {}
-
-    local running = false
 
     local function startRainbow(tool)
-        if not running or activeRainbowThreads[tool] then return end
-
+        if activeRainbowThreads[tool] then return end
         local parts = {}
-        originalProperties[tool] = {}
         for _, part in ipairs(tool:GetDescendants()) do
             if part:IsA("BasePart") then
                 table.insert(parts, part)
-                originalProperties[tool][part] = {
-                    Color = part.Color,
-                    Material = part.Material,
-                    Transparency = part.Transparency
-                }
             end
         end
-
         if #parts > 0 then
             local stopped = false
-            activeRainbowThreads[tool] = function()
-                stopped = true
-                -- Reset parts
-                for _, part in ipairs(parts) do
-                    local orig = originalProperties[tool][part]
-                    if orig then
-                        part.Color = orig.Color
-                        part.Material = orig.Material
-                        part.Transparency = orig.Transparency
-                    end
-                end
-                activeRainbowThreads[tool] = nil
-            end
-
+            activeRainbowThreads[tool] = function() stopped = true end
             task.spawn(function()
                 for _, part in ipairs(parts) do
                     part.Material = Enum.Material.Glass
@@ -67,6 +41,13 @@ local function RainbowGuns()
                     task.wait(0.05)
                 end
             end)
+        end
+    end
+
+    local function stopRainbow(tool)
+        if activeRainbowThreads[tool] then
+            activeRainbowThreads[tool]()
+            activeRainbowThreads[tool] = nil
         end
     end
 
@@ -102,21 +83,14 @@ local function RainbowGuns()
         char.ChildAdded:Connect(onToolAdded)
     end
 
-    return {
-        Enable = function()
-            if running then return end
-            running = true
-            applyToInventoryAndEquipped()
-            player.Backpack.ChildAdded:Connect(onToolAdded)
-            player.CharacterAdded:Connect(connectCharacter)
-            if player.Character then
-                connectCharacter(player.Character)
-            end
-        end,
-        Disable = function()
-            running = false
-            stopAllRainbows()
-        end
-    }
-end
+    -- Automatically apply rainbow effect
+    applyToInventoryAndEquipped()
+    player.Backpack.ChildAdded:Connect(onToolAdded)
+    player.CharacterAdded:Connect(connectCharacter)
+    if player.Character then
+        connectCharacter(player.Character)
+    end
 
+    -- RETURN THE STOPPER FUNCTION
+    return stopAllRainbows
+end
