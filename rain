@@ -16,12 +16,21 @@ do
 
     local activeRainbowThreads = {}
     local connections = {} -- Track connections
+    local originalStates = {} -- Store original state of parts
 
     local function startRainbow(tool)
         if activeRainbowThreads[tool] then return end
         local parts = {}
         for _, part in ipairs(tool:GetDescendants()) do
             if part:IsA("BasePart") then
+                -- Save original state if not saved already
+                if not originalStates[part] then
+                    originalStates[part] = {
+                        Color = part.Color,
+                        Material = part.Material,
+                        Transparency = part.Transparency
+                    }
+                end
                 table.insert(parts, part)
             end
         end
@@ -52,12 +61,31 @@ do
             activeRainbowThreads[tool]()
             activeRainbowThreads[tool] = nil
         end
+        -- Restore original state
+        for _, part in ipairs(tool:GetDescendants()) do
+            if part:IsA("BasePart") and originalStates[part] then
+                local state = originalStates[part]
+                part.Color = state.Color
+                part.Material = state.Material
+                part.Transparency = state.Transparency
+                originalStates[part] = nil -- clean up
+            end
+        end
     end
 
     local function stopAllRainbows()
         for tool, stopper in pairs(activeRainbowThreads) do
             stopper()
         end
+        -- Restore all parts
+        for part, state in pairs(originalStates) do
+            if part and part.Parent then
+                part.Color = state.Color
+                part.Material = state.Material
+                part.Transparency = state.Transparency
+            end
+        end
+        originalStates = {}
         activeRainbowThreads = {}
     end
 
