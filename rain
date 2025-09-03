@@ -1,0 +1,130 @@
+local function RainbowGuns()
+    local player = game.Players.LocalPlayer
+    local gunsFolder = workspace:FindFirstChild("GUNS")
+    if not gunsFolder then
+        warn("GUNS folder not found in workspace!")
+        return
+    end
+
+    local validGunNames = {}
+    for _, gun in ipairs(gunsFolder:GetChildren()) do
+        validGunNames[gun.Name] = true
+    end
+
+    local activeRainbowThreads = {}
+    local originalPartProperties = {}
+    local connections = {} -- To store all event connections
+
+    local function startRainbow(tool)
+        if activeRainbowThreads[tool] then return end
+        local parts = {}
+        originalPartProperties[tool] = {}
+        for _, part in ipairs(tool:GetDescendants()) do
+            if part:IsA("BasePart") then
+                table.insert(parts, part)
+                originalPartProperties[tool][part] = {
+                    Color = part.Color,
+                    Material = part.Material,
+                    Transparency = part.Transparency
+                }
+            end
+        end
+        if #parts > 0 then
+            local stopped = false
+            activeRainbowThreads[tool] = function()
+                stopped = true
+            end
+            task.spawn(function()
+                for _, part in ipairs(parts) do
+                    part.Material = Enum.Material.Glass
+                    part.Transparency = 0.3
+                end
+                while not stopped and (tool.Parent == player.Backpack or tool.Parent == player.Character) do
+                    local now = tick()
+                    local step = math.floor(now / 1)
+                    local hue = (step % 12) / 12
+                    local color = Color3.fromHSV(hue, 1, 1)
+                    for _, part in ipairs(parts) do
+                        part.Color = color
+                    end
+                    task.wait(0.05)
+                end
+                -- Reset parts to original properties
+                for _, part in ipairs(parts) do
+                    if originalPartProperties[tool][part] then
+                        part.Color = originalPartProperties[tool][part].Color
+                        part.Material = originalPartProperties[tool][part].Material
+                        part.Transparency = originalPartProperties[tool][part].Transparency
+                    end
+                end
+            end)
+        end
+    end
+
+    local function stopRainbow(tool)
+        if activeRainbowThreads[tool] then
+            activeRainbowThreads[tool]()
+            activeRainbowThreads[tool] = nil
+        end
+    end
+
+    local function stopAllRainbows()
+        for tool, stopper in pairs(activeRainbowThreads) do
+            stopper()
+        end
+        activeRainbowThreads = {}
+    end
+
+    local function applyToInventoryAndEquipped()
+        for _, tool in ipairs(player.Backpack:GetChildren()) do
+            if tool:IsA("Tool") and validGunNames[tool.Name] then
+                startRainbow(tool)
+            end
+        end
+        if player.Character then
+            for _, tool in ipairs(player.Character:GetChildren()) do
+                if tool:IsA("Tool") and validGunNames[tool.Name] then
+                    startRainbow(tool)
+                end
+            end
+        end
+    end
+
+    local function onToolAdded(tool)
+        if tool:IsA("Tool") and validGunNames[tool.Name] then
+            startRainbow(tool)
+        end
+    end
+
+    local function connectCharacter(char)
+        local conn = char.ChildAdded:Connect(onToolAdded)
+        table.insert(connections, conn)
+    end
+
+    local function disconnectAll()
+        for _, conn in ipairs(connections) do
+            if conn.Connected then
+                conn:Disconnect()
+            end
+        end
+        connections = {}
+    end
+
+    -- Return a table with Enable/Disable functions
+    return {
+        Enable = function()
+            applyToInventoryAndEquipped()
+            table.insert(connections, player.Backpack.ChildAdded:Connect(onToolAdded))
+            table.insert(connections, player.CharacterAdded:Connect(connectCharacter))
+            if player.Character then
+                connectCharacter(player.Character)
+            end
+        end,
+        Disable = function()
+            stopAllRainbows()
+            disconnectAll()
+        end
+    }
+end
+
+return RainbowGuns
