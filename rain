@@ -3,7 +3,10 @@ local function RainbowGuns()
     local gunsFolder = workspace:FindFirstChild("GUNS")
     if not gunsFolder then
         warn("GUNS folder not found in workspace!")
-        return
+        return {
+            Enable = function() end,
+            Disable = function() end
+        }
     end
 
     local validGunNames = {}
@@ -12,28 +15,42 @@ local function RainbowGuns()
     end
 
     local activeRainbowThreads = {}
-    local originalPartProperties = {}
-    local connections = {} -- To store all event connections
+    local originalProperties = {}
+
+    local running = false
 
     local function startRainbow(tool)
-        if activeRainbowThreads[tool] then return end
+        if not running or activeRainbowThreads[tool] then return end
+
         local parts = {}
-        originalPartProperties[tool] = {}
+        originalProperties[tool] = {}
         for _, part in ipairs(tool:GetDescendants()) do
             if part:IsA("BasePart") then
                 table.insert(parts, part)
-                originalPartProperties[tool][part] = {
+                originalProperties[tool][part] = {
                     Color = part.Color,
                     Material = part.Material,
                     Transparency = part.Transparency
                 }
             end
         end
+
         if #parts > 0 then
             local stopped = false
             activeRainbowThreads[tool] = function()
                 stopped = true
+                -- Reset parts
+                for _, part in ipairs(parts) do
+                    local orig = originalProperties[tool][part]
+                    if orig then
+                        part.Color = orig.Color
+                        part.Material = orig.Material
+                        part.Transparency = orig.Transparency
+                    end
+                end
+                activeRainbowThreads[tool] = nil
             end
+
             task.spawn(function()
                 for _, part in ipairs(parts) do
                     part.Material = Enum.Material.Glass
@@ -49,22 +66,7 @@ local function RainbowGuns()
                     end
                     task.wait(0.05)
                 end
-                -- Reset parts to original properties
-                for _, part in ipairs(parts) do
-                    if originalPartProperties[tool][part] then
-                        part.Color = originalPartProperties[tool][part].Color
-                        part.Material = originalPartProperties[tool][part].Material
-                        part.Transparency = originalPartProperties[tool][part].Transparency
-                    end
-                end
             end)
-        end
-    end
-
-    local function stopRainbow(tool)
-        if activeRainbowThreads[tool] then
-            activeRainbowThreads[tool]()
-            activeRainbowThreads[tool] = nil
         end
     end
 
@@ -97,34 +99,24 @@ local function RainbowGuns()
     end
 
     local function connectCharacter(char)
-        local conn = char.ChildAdded:Connect(onToolAdded)
-        table.insert(connections, conn)
+        char.ChildAdded:Connect(onToolAdded)
     end
 
-    local function disconnectAll()
-        for _, conn in ipairs(connections) do
-            if conn.Connected then
-                conn:Disconnect()
-            end
-        end
-        connections = {}
-    end
-
-    -- Return a table with Enable/Disable functions
     return {
         Enable = function()
+            if running then return end
+            running = true
             applyToInventoryAndEquipped()
-            table.insert(connections, player.Backpack.ChildAdded:Connect(onToolAdded))
-            table.insert(connections, player.CharacterAdded:Connect(connectCharacter))
+            player.Backpack.ChildAdded:Connect(onToolAdded)
+            player.CharacterAdded:Connect(connectCharacter)
             if player.Character then
                 connectCharacter(player.Character)
             end
         end,
         Disable = function()
+            running = false
             stopAllRainbows()
-            disconnectAll()
         end
     }
 end
 
-return RainbowGuns
