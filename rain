@@ -1,5 +1,7 @@
--- Main rainbow code, ready for loadstring
-local function RainbowGuns()
+-- RainbowGuns wrapper
+local RainbowGuns = {}
+
+do
     local player = game.Players.LocalPlayer
     local gunsFolder = workspace:FindFirstChild("GUNS")
     if not gunsFolder then
@@ -30,7 +32,7 @@ local function RainbowGuns()
                     part.Material = Enum.Material.Glass
                     part.Transparency = 0.3
                 end
-                while not stopped and (tool.Parent == player.Backpack or tool.Parent == player.Character) do
+                while not stopped do
                     local now = tick()
                     local step = math.floor(now / 1)
                     local hue = (step % 12) / 12
@@ -83,14 +85,19 @@ local function RainbowGuns()
         char.ChildAdded:Connect(onToolAdded)
     end
 
-    -- Automatically apply rainbow effect
-    applyToInventoryAndEquipped()
-    player.Backpack.ChildAdded:Connect(onToolAdded)
-    player.CharacterAdded:Connect(connectCharacter)
-    if player.Character then
-        connectCharacter(player.Character)
+    -- Expose functions to toggle externally
+    function RainbowGuns:Enable()
+        applyToInventoryAndEquipped()
+        player.Backpack.ChildAdded:Connect(onToolAdded)
+        player.CharacterAdded:Connect(connectCharacter)
+        if player.Character then
+            connectCharacter(player.Character)
+        end
     end
 
-    -- RETURN THE STOPPER FUNCTION
-    return stopAllRainbows
+    function RainbowGuns:Disable()
+        stopAllRainbows()
+    end
 end
+
+return RainbowGuns
