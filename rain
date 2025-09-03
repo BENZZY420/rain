@@ -15,6 +15,7 @@ do
     end
 
     local activeRainbowThreads = {}
+    local connections = {} -- Track connections
 
     local function startRainbow(tool)
         if activeRainbowThreads[tool] then return end
@@ -82,14 +83,14 @@ do
     end
 
     local function connectCharacter(char)
-        char.ChildAdded:Connect(onToolAdded)
+        table.insert(connections, char.ChildAdded:Connect(onToolAdded))
     end
 
     -- Expose functions to toggle externally
     function RainbowGuns:Enable()
         applyToInventoryAndEquipped()
-        player.Backpack.ChildAdded:Connect(onToolAdded)
-        player.CharacterAdded:Connect(connectCharacter)
+        table.insert(connections, player.Backpack.ChildAdded:Connect(onToolAdded))
+        table.insert(connections, player.CharacterAdded:Connect(connectCharacter))
         if player.Character then
             connectCharacter(player.Character)
         end
@@ -97,6 +98,11 @@ do
 
     function RainbowGuns:Disable()
         stopAllRainbows()
+        -- Disconnect all connections
+        for _, conn in ipairs(connections) do
+            conn:Disconnect()
+        end
+        connections = {}
     end
 end
 
