@@ -16,21 +16,24 @@ do
 
     local activeRainbowThreads = {}
     local connections = {} -- Track connections
-    local originalStates = {} -- Store original state of parts
+    local originalStates = {} -- Store original state of each part
+
+    local function storeOriginalState(part)
+        if not originalStates[part] then
+            originalStates[part] = {
+                Color = part.Color,
+                Material = part.Material,
+                Transparency = part.Transparency
+            }
+        end
+    end
 
     local function startRainbow(tool)
         if activeRainbowThreads[tool] then return end
         local parts = {}
         for _, part in ipairs(tool:GetDescendants()) do
             if part:IsA("BasePart") then
-                -- Save original state if not saved already
-                if not originalStates[part] then
-                    originalStates[part] = {
-                        Color = part.Color,
-                        Material = part.Material,
-                        Transparency = part.Transparency
-                    }
-                end
+                storeOriginalState(part)
                 table.insert(parts, part)
             end
         end
@@ -56,20 +59,23 @@ do
         end
     end
 
-    local function stopRainbow(tool)
-        if activeRainbowThreads[tool] then
-            activeRainbowThreads[tool]()
-            activeRainbowThreads[tool] = nil
-        end
-        -- Restore original state
+    local function restoreOriginal(tool)
         for _, part in ipairs(tool:GetDescendants()) do
             if part:IsA("BasePart") and originalStates[part] then
                 local state = originalStates[part]
                 part.Color = state.Color
                 part.Material = state.Material
                 part.Transparency = state.Transparency
-                originalStates[part] = nil -- clean up
+                originalStates[part] = nil
             end
+        end
+    end
+
+    local function stopRainbow(tool)
+        if activeRainbowThreads[tool] then
+            activeRainbowThreads[tool]()
+            activeRainbowThreads[tool] = nil
+            restoreOriginal(tool)
         end
     end
 
@@ -77,7 +83,7 @@ do
         for tool, stopper in pairs(activeRainbowThreads) do
             stopper()
         end
-        -- Restore all parts
+        -- Ensure everything is restored
         for part, state in pairs(originalStates) do
             if part and part.Parent then
                 part.Color = state.Color
@@ -114,7 +120,6 @@ do
         table.insert(connections, char.ChildAdded:Connect(onToolAdded))
     end
 
-    -- Expose functions to toggle externally
     function RainbowGuns:Enable()
         applyToInventoryAndEquipped()
         table.insert(connections, player.Backpack.ChildAdded:Connect(onToolAdded))
@@ -126,7 +131,6 @@ do
 
     function RainbowGuns:Disable()
         stopAllRainbows()
-        -- Disconnect all connections
         for _, conn in ipairs(connections) do
             conn:Disconnect()
         end
